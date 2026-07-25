@@ -31,3 +31,6 @@ backup/
 # macOS app
 *.app/Contents/MacOS/*.compiled
 .DS_Store
+
+# Cache data
+app/data/api-cache.json

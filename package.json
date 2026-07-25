@@ -5,15 +5,23 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "validate": "tsc --noEmit && biome check ."
   },
   "dependencies": {
     "hono": "^4",
     "honox": "^0.1.60"
   },
   "devDependencies": {
-    "vite": "^6",
+    "@biomejs/biome": "^2.5.5",
     "@hono/vite-dev-server": "^0.26.1",
-    "typescript": "^5"
+    "@types/node": "^26.1.1",
+    "node": "link:@hono/vite-dev-server/node",
+    "typescript": "^5",
+    "vite": "^6"
   }
 }

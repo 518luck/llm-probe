@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'hono/jsx'
+import { useCallback, useEffect, useState } from 'hono/jsx'
 
 interface Config {
   url: string
@@ -11,12 +11,39 @@ interface Message {
   content: string
 }
 
+interface CacheData {
+  urls: Record<string, string>
+  lastUrl: string
+}
+
+// 从服务端加载缓存
+async function loadCacheFromServer(): Promise<CacheData> {
+  try {
+    const resp = await fetch('/api/cache')
+    return await resp.json()
+  } catch {
+    return { urls: {}, lastUrl: '' }
+  }
+}
+
+// 保存缓存到服务端
+async function saveCacheToServer(data: { url?: string; key?: string; lastUrl?: string }) {
+  try {
+    await fetch('/api/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  } catch {
+    // ignore
+  }
+}
+
 export default function App() {
   const [apiUrl, setApiUrl] = useState('https://agentrouter.org/v1')
   const [apiKey, setApiKey] = useState('')
-  const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>([
-    { key: 'User-Agent', value: 'QwenCode/1.0.0' }
-  ])
+  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({})
+  const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>([])
   const [activeTab, setActiveTab] = useState('test')
   const [testModel, setTestModel] = useState('gpt-5.5')
   const [messages, setMessages] = useState<Message[]>([{ role: 'user', content: 'hi' }])
@@ -27,60 +54,65 @@ export default function App() {
   const [statusType, setStatusType] = useState('')
   const [loading, setLoading] = useState(false)
   const [metaInfo, setMetaInfo] = useState('')
-  const [modelList, setModelList] = useState<Array<{ id: string; supported_endpoint_types?: string[] }>>([])
-  const [isDark, setIsDark] = useState(false)
+  const [modelList, setModelList] = useState<
+    Array<{ id: string; supported_endpoint_types?: string[] }>
+  >([])
 
-  // 初始化主题
+  // 从服务端加载缓存的 API 配置
   useEffect(() => {
-    const saved = localStorage.getItem('llm-tester-theme')
-    if (saved === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark')
-      setIsDark(true)
-    } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches && !saved) {
-      document.documentElement.setAttribute('data-theme', 'dark')
-      setIsDark(true)
-    }
+    loadCacheFromServer().then((cache) => {
+      setCachedUrls(cache.urls)
+      if (cache.lastUrl) {
+        setApiUrl(cache.lastUrl)
+        setApiKey(cache.urls[cache.lastUrl] || '')
+      }
+    })
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    const newIsDark = !isDark
-    setIsDark(newIsDark)
-    document.documentElement.setAttribute('data-theme', newIsDark ? 'dark' : 'light')
-    localStorage.setItem('llm-tester-theme', newIsDark ? 'dark' : 'light')
-  }, [isDark])
+  // 处理 API URL 变更
+  const handleApiUrlChange = useCallback((newUrl: string) => {
+    setApiUrl(newUrl)
+    saveCacheToServer({ lastUrl: newUrl })
+    // 切换 URL 时，从服务端获取该 URL 对应的 API Key
+    loadCacheFromServer().then((cache) => {
+      setApiKey(cache.urls[newUrl] || '')
+    })
+  }, [])
+
+  // 处理 API Key 变更
+  const handleApiKeyChange = useCallback(
+    (newKey: string) => {
+      setApiKey(newKey)
+      // 保存当前 URL 对应的 API Key 到服务端
+      saveCacheToServer({ url: apiUrl, key: newKey })
+      // 更新本地缓存列表
+      setCachedUrls((prev) => ({ ...prev, [apiUrl]: newKey }))
+    },
+    [apiUrl],
+  )
 
   const addHeader = useCallback(() => {
-    setHeaders(prev => [...prev, { key: '', value: '' }])
+    setHeaders((prev) => [...prev, { key: '', value: '' }])
   }, [])
 
   const removeHeader = useCallback((index: number) => {
-    setHeaders(prev => prev.filter((_, i) => i !== index))
+    setHeaders((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const updateHeader = useCallback((index: number, field: 'key' | 'value', val: string) => {
-    setHeaders(prev => prev.map((h, i) => i === index ? { ...h, [field]: val } : h))
+    setHeaders((prev) => prev.map((h, i) => (i === index ? { ...h, [field]: val } : h)))
   }, [])
 
   const addMessage = useCallback(() => {
-    setMessages(prev => [...prev, { role: 'user', content: '' }])
+    setMessages((prev) => [...prev, { role: 'user', content: '' }])
   }, [])
 
   const removeMessage = useCallback((index: number) => {
-    setMessages(prev => prev.filter((_, i) => i !== index))
+    setMessages((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const updateMessage = useCallback((index: number, field: 'role' | 'content', val: string) => {
-    setMessages(prev => prev.map((m, i) => i === index ? { ...m, [field]: val } : m))
-  }, [])
-
-  const setPreset = useCallback((name: string) => {
-    if (name === 'agentrouter') {
-      setApiUrl('https://agentrouter.org/v1')
-      setHeaders([{ key: 'User-Agent', value: 'QwenCode/1.0.0' }])
-    } else {
-      setApiUrl('')
-      setHeaders([])
-    }
+    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: val } : m)))
   }, [])
 
   const showResult = useCallback((data: unknown) => {
@@ -107,25 +139,31 @@ export default function App() {
   const getConfig = useCallback((): Config => {
     const url = apiUrl.replace(/\/+$/, '')
     const headerObj = {} as Record<string, string>
-    headers.forEach(h => {
+    headers.forEach((h) => {
       if (h.key.trim()) headerObj[h.key.trim()] = h.value.trim()
     })
-    if (apiKey) headerObj['Authorization'] = `Bearer ${apiKey}`
+    if (apiKey) headerObj.Authorization = `Bearer ${apiKey}`
     return { url, key: apiKey, headers: headerObj }
   }, [apiKey, apiUrl, headers])
 
   const listModels = useCallback(async () => {
     const cfg = getConfig()
-    if (!cfg.url) { setStatus('请填写 API URL'); setStatusType('error'); return }
-    setStatus('获取模型列表中...'); setStatusType('loading'); setLoading(true)
+    if (!cfg.url) {
+      setStatus('请填写 API URL')
+      setStatusType('error')
+      return
+    }
+    setStatus('获取模型列表中...')
+    setStatusType('loading')
+    setLoading(true)
 
     try {
-      let result = await proxyRequest(cfg.url + '/models', 'GET', cfg.headers)
+      let result = await proxyRequest(`${cfg.url}/models`, 'GET', cfg.headers)
       let data = result.data
 
       if (!data?.data) {
         const baseUrl = cfg.url.replace(/\/v1\/?$/, '')
-        result = await proxyRequest(baseUrl + '/v1/models', 'GET', cfg.headers)
+        result = await proxyRequest(`${baseUrl}/v1/models`, 'GET', cfg.headers)
         data = result.data
       }
 
@@ -145,20 +183,32 @@ export default function App() {
 
   const sendTest = useCallback(async () => {
     const cfg = getConfig()
-    if (!cfg.url) { setStatus('请填写 API URL'); setStatusType('error'); return }
-    if (!testModel.trim()) { setStatus('请填写模型名称'); setStatusType('error'); return }
-    if (messages.length === 0 || !messages.some(m => m.content.trim())) {
-      setStatus('请至少输入一条消息'); setStatusType('error'); return
+    if (!cfg.url) {
+      setStatus('请填写 API URL')
+      setStatusType('error')
+      return
+    }
+    if (!testModel.trim()) {
+      setStatus('请填写模型名称')
+      setStatusType('error')
+      return
+    }
+    if (messages.length === 0 || !messages.some((m) => m.content.trim())) {
+      setStatus('请至少输入一条消息')
+      setStatusType('error')
+      return
     }
 
     const body = {
       model: testModel.trim(),
-      messages: messages.filter(m => m.content.trim()),
+      messages: messages.filter((m) => m.content.trim()),
       max_tokens: maxTokens,
-      stream
+      stream,
     }
 
-    setStatus('发送请求中...'); setStatusType('loading'); setLoading(true)
+    setStatus('发送请求中...')
+    setStatusType('loading')
+    setLoading(true)
     setMetaInfo('')
     showResult('请求中...')
 
@@ -174,13 +224,15 @@ export default function App() {
           model: data.model || testModel,
           content: data.choices?.[0]?.message?.content || '',
           finish_reason: data.choices?.[0]?.finish_reason || '',
-          usage: data.usage || null
+          usage: data.usage || null,
         }
         showResult(formatted)
         setStatus('✅ 请求成功')
         setStatusType('success')
         if (data.usage) {
-          setMetaInfo(`输入: ${data.usage.prompt_tokens || '-'} | 输出: ${data.usage.completion_tokens || '-'} | 总计: ${data.usage.total_tokens || '-'}`)
+          setMetaInfo(
+            `输入: ${data.usage.prompt_tokens || '-'} | 输出: ${data.usage.completion_tokens || '-'} | 总计: ${data.usage.total_tokens || '-'}`,
+          )
         }
       } else {
         showResult(data)
@@ -209,9 +261,6 @@ export default function App() {
       <h1>
         🧪 LLM API Tester
         <small>快速测试 LLM API 连通性</small>
-        <button class="theme-toggle" onClick={toggleTheme} title="切换主题">
-          {isDark ? '☀️' : '🌙'} <span>{isDark ? '浅色' : '深色'}</span>
-        </button>
       </h1>
 
       {/* 基础配置 */}
@@ -220,15 +269,36 @@ export default function App() {
         <div class="form-row">
           <label>API URL</label>
           <div class="flex-1 inline-flex">
-            <input value={apiUrl} placeholder="https://example.com/v1" style="flex:1" onInput={e => setApiUrl((e.target as HTMLInputElement).value)} />
-            <button class="preset-btn" onClick={() => setPreset('agentrouter')}>AgentRouter</button>
-            <button class="preset-btn" onClick={() => setPreset('custom')}>自定义</button>
+            <input
+              value={apiUrl}
+              placeholder="https://example.com/v1"
+              style="flex:1"
+              onInput={(e) => handleApiUrlChange((e.target as HTMLInputElement).value)}
+            />
+            {Object.keys(cachedUrls).length > 0 && (
+              <select
+                value={apiUrl}
+                onChange={(e) => handleApiUrlChange((e.target as HTMLSelectElement).value)}
+                style="width:200px"
+              >
+                {Object.keys(cachedUrls).map((url) => (
+                  <option key={url} value={url}>
+                    {url}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
         <div class="form-row">
           <label>API Key</label>
           <div class="flex-1">
-            <input type="password" value={apiKey} placeholder="sk-..." onInput={e => setApiKey((e.target as HTMLInputElement).value)} />
+            <input
+              type="text"
+              value={apiKey}
+              placeholder="sk-..."
+              onInput={(e) => handleApiKeyChange((e.target as HTMLInputElement).value)}
+            />
           </div>
         </div>
         <div class="form-row" style="align-items:flex-start">
@@ -237,13 +307,27 @@ export default function App() {
             <div class="headers-list">
               {headers.map((h, i) => (
                 <div class="header-item" key={i}>
-                  <input class="header-key" value={h.key} placeholder="Header" onInput={e => updateHeader(i, 'key', (e.target as HTMLInputElement).value)} />
-                  <input class="header-value" value={h.value} placeholder="Value" onInput={e => updateHeader(i, 'value', (e.target as HTMLInputElement).value)} />
-                  <button class="btn-remove" onClick={() => removeHeader(i)}>×</button>
+                  <input
+                    class="header-key"
+                    value={h.key}
+                    placeholder="Header"
+                    onInput={(e) => updateHeader(i, 'key', (e.target as HTMLInputElement).value)}
+                  />
+                  <input
+                    class="header-value"
+                    value={h.value}
+                    placeholder="Value"
+                    onInput={(e) => updateHeader(i, 'value', (e.target as HTMLInputElement).value)}
+                  />
+                  <button type="button" class="btn-remove" onClick={() => removeHeader(i)}>
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
-            <button class="btn-add-header" onClick={addHeader}>+ 添加请求头</button>
+            <button type="button" class="btn-add-header" onClick={addHeader}>
+              + 添加请求头
+            </button>
           </div>
         </div>
       </div>
@@ -251,8 +335,20 @@ export default function App() {
       {/* 操作区 */}
       <div class="card">
         <div class="tabs">
-          <button class={`tab ${activeTab === 'test' ? 'active' : ''}`} onClick={() => setActiveTab('test')}>📤 发送测试</button>
-          <button class={`tab ${activeTab === 'models' ? 'active' : ''}`} onClick={() => setActiveTab('models')}>📋 查看模型</button>
+          <button
+            type="button"
+            class={`tab ${activeTab === 'test' ? 'active' : ''}`}
+            onClick={() => setActiveTab('test')}
+          >
+            📤 发送测试
+          </button>
+          <button
+            type="button"
+            class={`tab ${activeTab === 'models' ? 'active' : ''}`}
+            onClick={() => setActiveTab('models')}
+          >
+            📋 查看模型
+          </button>
         </div>
 
         {/* Tab: 发送测试 */}
@@ -260,10 +356,25 @@ export default function App() {
           <div class="form-row">
             <label>模型</label>
             <div class="flex-1 inline-flex">
-              <input value={testModel} placeholder="model id" style="flex:1" onInput={e => setTestModel((e.target as HTMLInputElement).value)} />
-              <button class="preset-btn" onClick={() => setTestModel('gpt-5.5')}>gpt-5.5</button>
-              <button class="preset-btn" onClick={() => setTestModel('claude-opus-4-6')}>opus-4-6</button>
-              <button class="preset-btn" onClick={() => setTestModel('glm-5.2')}>glm-5.2</button>
+              <input
+                value={testModel}
+                placeholder="model id"
+                style="flex:1"
+                onInput={(e) => setTestModel((e.target as HTMLInputElement).value)}
+              />
+              <button type="button" class="preset-btn" onClick={() => setTestModel('gpt-5.5')}>
+                gpt-5.5
+              </button>
+              <button
+                type="button"
+                class="preset-btn"
+                onClick={() => setTestModel('claude-opus-4-6')}
+              >
+                opus-4-6
+              </button>
+              <button type="button" class="preset-btn" onClick={() => setTestModel('glm-5.2')}>
+                glm-5.2
+              </button>
             </div>
           </div>
           <div class="form-row" style="align-items:flex-start">
@@ -271,47 +382,92 @@ export default function App() {
             <div class="flex-1">
               {messages.map((msg, i) => (
                 <div class="msg-row" key={i}>
-                  <select class="role-select" value={msg.role} onChange={e => updateMessage(i, 'role', (e.target as HTMLSelectElement).value)}>
+                  <select
+                    class="role-select"
+                    value={msg.role}
+                    onChange={(e) =>
+                      updateMessage(i, 'role', (e.target as HTMLSelectElement).value)
+                    }
+                  >
                     <option value="user">user</option>
                     <option value="system">system</option>
                     <option value="assistant">assistant</option>
                   </select>
-                  <textarea rows={2} placeholder="消息内容" value={msg.content} onInput={e => updateMessage(i, 'content', (e.target as HTMLTextAreaElement).value)} />
-                  <button class="btn-remove" onClick={() => removeMessage(i)}>×</button>
+                  <textarea
+                    rows={2}
+                    placeholder="消息内容"
+                    value={msg.content}
+                    onInput={(e) =>
+                      updateMessage(i, 'content', (e.target as HTMLTextAreaElement).value)
+                    }
+                  />
+                  <button type="button" class="btn-remove" onClick={() => removeMessage(i)}>
+                    ×
+                  </button>
                 </div>
               ))}
-              <button class="btn-add-header" onClick={addMessage}>+ 添加消息</button>
+              <button type="button" class="btn-add-header" onClick={addMessage}>
+                + 添加消息
+              </button>
             </div>
           </div>
           <div class="form-row">
             <label>Stream</label>
             <div class="flex-1">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-                <input type="checkbox" checked={stream} onChange={e => setStream((e.target as HTMLInputElement).checked)} /> 启用 streaming
+                <input
+                  type="checkbox"
+                  checked={stream}
+                  onChange={(e) => setStream((e.target as HTMLInputElement).checked)}
+                />{' '}
+                启用 streaming
               </label>
             </div>
           </div>
           <div class="form-row">
             <label>最大 Token</label>
             <div class="flex-1">
-              <input type="number" value={maxTokens} style="width:120px" onInput={e => setMaxTokens(parseInt((e.target as HTMLInputElement).value) || 100)} />
+              <input
+                type="number"
+                value={maxTokens}
+                style="width:120px"
+                onInput={(e) =>
+                  setMaxTokens(parseInt((e.target as HTMLInputElement).value, 10) || 100)
+                }
+              />
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:4px">
-            <button class="btn btn-primary" onClick={sendTest}>🚀 发送请求</button>
-            <button class="btn btn-outline" onClick={clearResult}>清除</button>
+            <button type="button" class="btn btn-primary" onClick={sendTest}>
+              🚀 发送请求
+            </button>
+            <button type="button" class="btn btn-outline" onClick={clearResult}>
+              清除
+            </button>
           </div>
         </div>
 
         {/* Tab: 查看模型 */}
         <div class={`tab-content ${activeTab === 'models' ? 'active' : ''}`}>
-          <button class="btn btn-success" onClick={listModels}>📋 获取模型列表</button>
+          <button type="button" class="btn btn-success" onClick={listModels}>
+            📋 获取模型列表
+          </button>
           <div class="model-list">
-            {modelList.map(m => (
-              <span class="model-chip" key={m.id} onClick={() => setTestModel(m.id)} style="cursor:pointer" title="点击填入测试框">
+            {modelList.map((m) => (
+              <button
+                type="button"
+                class="model-chip"
+                key={m.id}
+                onClick={() => setTestModel(m.id)}
+                title="点击填入测试框"
+              >
                 {m.id}
-                {m.supported_endpoint_types?.map(t => <span class="endpoint-type" key={t}>{t}</span>)}
-              </span>
+                {m.supported_endpoint_types?.map((t) => (
+                  <span class="endpoint-type" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </button>
             ))}
           </div>
         </div>
@@ -331,11 +487,16 @@ export default function App() {
   )
 }
 
-async function proxyRequest(url: string, method: string, headers: Record<string, string>, body?: unknown) {
+async function proxyRequest(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: unknown,
+) {
   const resp = await fetch('/api/proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, method, headers, body: body ? JSON.stringify(body) : null })
+    body: JSON.stringify({ url, method, headers, body: body ? JSON.stringify(body) : null }),
   })
   return await resp.json()
 }

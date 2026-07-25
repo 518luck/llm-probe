@@ -5,7 +5,8 @@ type Data = {
 }
 
 declare module 'hono' {
-  interface ContextRenderer {
-    (content: string | Promise<string>, data?: Data): Response | Promise<Response>
-  }
+  type ContextRenderer = (
+    content: string | Promise<string>,
+    data?: Data,
+  ) => Response | Promise<Response>
 }
