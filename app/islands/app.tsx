@@ -49,6 +49,9 @@ export default function App() {
   const [apiUrl, setApiUrl] = useState('https://agentrouter.org/v1')
   const [apiKey, setApiKey] = useState('')
   const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({})
+  const [cachedModels, setCachedModels] = useState<
+    Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
+  >({})
   const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>([])
   const [activeTab, setActiveTab] = useState('test')
   const [testModel, setTestModel] = useState('gpt-5.5')
@@ -68,6 +71,7 @@ export default function App() {
   useEffect(() => {
     loadCacheFromServer().then((cache) => {
       setCachedUrls(cache.urls)
+      setCachedModels(cache.models)
       if (cache.lastUrl) {
         setApiUrl(cache.lastUrl)
         setApiKey(cache.urls[cache.lastUrl] || '')
@@ -86,6 +90,7 @@ export default function App() {
     // 切换 URL 时，从服务端获取该 URL 对应的 API Key 和模型列表
     loadCacheFromServer().then((cache) => {
       setApiKey(cache.urls[newUrl] || '')
+      setCachedModels(cache.models)
       if (cache.models[newUrl]) {
         setModelList(cache.models[newUrl])
       } else {
@@ -189,6 +194,7 @@ export default function App() {
       showResult(data)
       // 保存模型列表到缓存
       saveCacheToServer({ url: apiUrl, models })
+      setCachedModels((prev) => ({ ...prev, [apiUrl]: models }))
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '未知错误'
       setStatus(`获取失败: ${message}`)
@@ -486,6 +492,13 @@ export default function App() {
           >
             📋 查看模型
           </button>
+          <button
+            type="button"
+            class={`tab ${activeTab === 'sites' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sites')}
+          >
+            🌐 站点管理
+          </button>
         </div>
 
         {/* Tab: 发送测试 */}
@@ -607,6 +620,56 @@ export default function App() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Tab: 站点管理 */}
+        <div class={`tab-content ${activeTab === 'sites' ? 'active' : ''}`}>
+          {Object.keys(cachedUrls).length === 0 ? (
+            <div style="color:#565f89;font-size:13px">暂无保存的站点</div>
+          ) : (
+            <div style="display:flex;flex-direction:column;gap:12px">
+              {Object.entries(cachedUrls).map(([url, key]) => (
+                <div
+                  key={url}
+                  style="background:#1f2335;border:1px solid #414868;border-radius:8px;padding:12px"
+                >
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <div style="font-weight:600;color:#c0caf5;word-break:break-all">{url}</div>
+                    <button
+                      type="button"
+                      class="btn btn-outline"
+                      style="font-size:11px;padding:4px 8px"
+                      onClick={() => handleApiUrlChange(url)}
+                    >
+                      切换
+                    </button>
+                  </div>
+                  <div style="font-size:12px;color:#565f89;margin-bottom:8px">
+                    Key: {key.slice(0, 15)}...
+                  </div>
+                  <div>
+                    <div style="font-size:12px;color:#565f89;margin-bottom:4px">
+                      模型 ({cachedModels[url]?.length || 0}):
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px">
+                      {cachedModels[url]?.length > 0 ? (
+                        cachedModels[url].map((m) => (
+                          <span
+                            key={m.id}
+                            style="background:#24283b;border:1px solid #3b4261;border-radius:4px;padding:2px 6px;font-size:11px;color:#7aa2f7"
+                          >
+                            {m.id}
+                          </span>
+                        ))
+                      ) : (
+                        <span style="font-size:11px;color:#565f89">暂无模型</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
