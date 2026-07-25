@@ -14,7 +14,10 @@ app.post('/', async (c) => {
 
     const fetchOptions: RequestInit = {
       method,
-      headers: headers || {},
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
     }
 
     if (requestBody) {

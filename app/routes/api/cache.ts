@@ -8,6 +8,7 @@ const CACHE_FILE = join(process.cwd(), 'app/data/api-cache.json')
 
 interface CacheData {
   urls: Record<string, string>
+  models: Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
   lastUrl: string
 }
 
@@ -20,7 +21,7 @@ function readCache(): CacheData {
   } catch {
     // ignore
   }
-  return { urls: {}, lastUrl: '' }
+  return { urls: {}, models: {}, lastUrl: '' }
 }
 
 function writeCache(data: CacheData) {
@@ -44,6 +45,9 @@ app.post('/', async (c) => {
 
   if (body.url && body.key !== undefined) {
     cache.urls[body.url] = body.key
+  }
+  if (body.url && body.models !== undefined) {
+    cache.models[body.url] = body.models
   }
   if (body.lastUrl) {
     cache.lastUrl = body.lastUrl

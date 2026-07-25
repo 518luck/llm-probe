@@ -13,6 +13,7 @@ interface Message {
 
 interface CacheData {
   urls: Record<string, string>
+  models: Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
   lastUrl: string
 }
 
@@ -22,12 +23,17 @@ async function loadCacheFromServer(): Promise<CacheData> {
     const resp = await fetch('/api/cache')
     return await resp.json()
   } catch {
-    return { urls: {}, lastUrl: '' }
+    return { urls: {}, models: {}, lastUrl: '' }
   }
 }
 
 // 保存缓存到服务端
-async function saveCacheToServer(data: { url?: string; key?: string; lastUrl?: string }) {
+async function saveCacheToServer(data: {
+  url?: string
+  key?: string
+  models?: Array<{ id: string; supported_endpoint_types?: string[] }>
+  lastUrl?: string
+}) {
   try {
     await fetch('/api/cache', {
       method: 'POST',
@@ -65,6 +71,10 @@ export default function App() {
       if (cache.lastUrl) {
         setApiUrl(cache.lastUrl)
         setApiKey(cache.urls[cache.lastUrl] || '')
+        // 加载该 URL 的缓存模型列表
+        if (cache.models[cache.lastUrl]) {
+          setModelList(cache.models[cache.lastUrl])
+        }
       }
     })
   }, [])
@@ -73,9 +83,14 @@ export default function App() {
   const handleApiUrlChange = useCallback((newUrl: string) => {
     setApiUrl(newUrl)
     saveCacheToServer({ lastUrl: newUrl })
-    // 切换 URL 时，从服务端获取该 URL 对应的 API Key
+    // 切换 URL 时，从服务端获取该 URL 对应的 API Key 和模型列表
     loadCacheFromServer().then((cache) => {
       setApiKey(cache.urls[newUrl] || '')
+      if (cache.models[newUrl]) {
+        setModelList(cache.models[newUrl])
+      } else {
+        setModelList([])
+      }
     })
   }, [])
 
@@ -172,6 +187,8 @@ export default function App() {
       setStatus(`获取成功，共 ${models.length} 个模型`)
       setStatusType('success')
       showResult(data)
+      // 保存模型列表到缓存
+      saveCacheToServer({ url: apiUrl, models })
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '未知错误'
       setStatus(`获取失败: ${message}`)
@@ -362,19 +379,19 @@ export default function App() {
                 style="flex:1"
                 onInput={(e) => setTestModel((e.target as HTMLInputElement).value)}
               />
-              <button type="button" class="preset-btn" onClick={() => setTestModel('gpt-5.5')}>
-                gpt-5.5
-              </button>
-              <button
-                type="button"
-                class="preset-btn"
-                onClick={() => setTestModel('claude-opus-4-6')}
-              >
-                opus-4-6
-              </button>
-              <button type="button" class="preset-btn" onClick={() => setTestModel('glm-5.2')}>
-                glm-5.2
-              </button>
+              {modelList.length > 0 && (
+                <select
+                  value={testModel}
+                  onChange={(e) => setTestModel((e.target as HTMLSelectElement).value)}
+                  style="width:200px"
+                >
+                  {modelList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.id}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
           <div class="form-row" style="align-items:flex-start">
