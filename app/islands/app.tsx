@@ -322,6 +322,114 @@ export default function App() {
           <label>请求头</label>
           <div class="flex-1">
             <div class="headers-list">
+              {/* 默认请求头 */}
+              <div class="header-item" style="opacity:0.7">
+                <input
+                  class="header-key"
+                  value="Content-Type"
+                  disabled
+                  style="background:#1f2335"
+                />
+                <input
+                  class="header-value"
+                  value="application/json"
+                  disabled
+                  style="background:#1f2335"
+                />
+                <span style="font-size:11px;color:#565f89;width:50px">默认</span>
+              </div>
+              <div class="header-item" style="opacity:0.7">
+                <input
+                  class="header-key"
+                  value="Authorization"
+                  disabled
+                  style="background:#1f2335"
+                />
+                <input
+                  class="header-value"
+                  value={apiKey ? `Bearer ${apiKey.slice(0, 10)}...` : '(未设置)'}
+                  disabled
+                  style="background:#1f2335"
+                />
+                <span style="font-size:11px;color:#565f89;width:50px">自动</span>
+              </div>
+              {/* 客户端模拟选择 */}
+              <div style="margin:8px 0">
+                <div style="font-size:12px;color:#565f89;margin-bottom:6px">模拟客户端</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  {[
+                    { key: 'User-Agent', value: 'QwenCode/1.0.0', label: '千问 Code' },
+                    { key: 'User-Agent', value: 'Claude-Code/1.0', label: 'Claude Code' },
+                    { key: 'User-Agent', value: 'Codex-CLI/1.0', label: 'Codex CLI' },
+                    { key: 'User-Agent', value: 'Cursor/1.0', label: 'Cursor' },
+                    { key: 'User-Agent', value: 'Windsurf/1.0', label: 'Windsurf' },
+                    { key: 'User-Agent', value: 'Cline/1.0', label: 'Cline' },
+                    { key: 'User-Agent', value: 'Aider/1.0', label: 'Aider' },
+                    { key: 'User-Agent', value: 'Continue/1.0', label: 'Continue' },
+                  ].map((preset) => {
+                    const exists = headers.some(
+                      (h) => h.key === preset.key && h.value === preset.value,
+                    )
+                    return (
+                      <button
+                        type="button"
+                        class="preset-btn"
+                        style={exists ? 'background:#7aa2f7;color:#1a1b26' : ''}
+                        onClick={() => {
+                          if (exists) {
+                            setHeaders((prev) =>
+                              prev.filter(
+                                (h) => !(h.key === preset.key && h.value === preset.value),
+                              ),
+                            )
+                          } else {
+                            // 替换已有的 User-Agent
+                            setHeaders((prev) => [
+                              ...prev.filter((h) => h.key !== 'User-Agent'),
+                              { key: preset.key, value: preset.value },
+                            ])
+                          }
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* 常用请求头选择 */}
+              <div style="margin:8px 0">
+                <div style="font-size:12px;color:#565f89;margin-bottom:6px">常用请求头</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  {[
+                    { key: 'Accept', value: 'application/json', label: 'Accept' },
+                    { key: 'X-Request-ID', value: '', label: 'Request-ID' },
+                    { key: 'X-Custom-Source', value: 'llm-probe', label: 'Custom-Source' },
+                  ].map((preset) => {
+                    const exists = headers.some((h) => h.key === preset.key)
+                    return (
+                      <button
+                        type="button"
+                        class="preset-btn"
+                        style={exists ? 'background:#7aa2f7;color:#1a1b26' : ''}
+                        onClick={() => {
+                          if (exists) {
+                            setHeaders((prev) => prev.filter((h) => h.key !== preset.key))
+                          } else {
+                            setHeaders((prev) => [
+                              ...prev,
+                              { key: preset.key, value: preset.value },
+                            ])
+                          }
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* 自定义请求头 */}
               {headers.map((h, i) => (
                 <div class="header-item" key={i}>
                   <input
@@ -343,7 +451,7 @@ export default function App() {
               ))}
             </div>
             <button type="button" class="btn-add-header" onClick={addHeader}>
-              + 添加请求头
+              + 添加自定义请求头
             </button>
           </div>
         </div>
