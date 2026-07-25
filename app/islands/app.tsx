@@ -359,13 +359,25 @@ export default function App() {
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                   {[
                     { key: 'User-Agent', value: 'QwenCode/1.0.0', label: '千问 Code' },
-                    { key: 'User-Agent', value: 'Claude-Code/1.0', label: 'Claude Code' },
-                    { key: 'User-Agent', value: 'Codex-CLI/1.0', label: 'Codex CLI' },
-                    { key: 'User-Agent', value: 'Cursor/1.0', label: 'Cursor' },
-                    { key: 'User-Agent', value: 'Windsurf/1.0', label: 'Windsurf' },
-                    { key: 'User-Agent', value: 'Cline/1.0', label: 'Cline' },
-                    { key: 'User-Agent', value: 'Aider/1.0', label: 'Aider' },
-                    { key: 'User-Agent', value: 'Continue/1.0', label: 'Continue' },
+                    {
+                      key: 'User-Agent',
+                      value: 'claude-cli/2.1.22 (external, cli)',
+                      label: 'Claude Code',
+                    },
+                    {
+                      key: 'User-Agent',
+                      value: 'codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color',
+                      label: 'Codex CLI',
+                    },
+                    { key: 'User-Agent', value: 'Cursor/0.50.7 (darwin; arm64)', label: 'Cursor' },
+                    {
+                      key: 'User-Agent',
+                      value: 'Windsurf/1.2.0 (darwin; arm64)',
+                      label: 'Windsurf',
+                    },
+                    { key: 'User-Agent', value: 'Cline/3.2.0 (vscode)', label: 'Cline' },
+                    { key: 'User-Agent', value: 'aider/0.80.0 (python/3.11)', label: 'Aider' },
+                    { key: 'User-Agent', value: 'Continue/0.9.0 (vscode)', label: 'Continue' },
                   ].map((preset) => {
                     const exists = headers.some(
                       (h) => h.key === preset.key && h.value === preset.value,
