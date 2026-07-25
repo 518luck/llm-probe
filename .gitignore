@@ -34,3 +34,6 @@ backup/
 
 # Cache data
 app/data/api-cache.json
+
+# LiteLLM config (contains API keys)
+litellm_config.yaml

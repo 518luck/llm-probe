@@ -279,6 +279,80 @@ export default function App() {
     setMetaInfo('')
   }, [])
 
+  // 批量测试所有模型
+  const batchTest = useCallback(async () => {
+    if (modelList.length === 0) {
+      setStatus('请先获取模型列表')
+      setStatusType('error')
+      return
+    }
+
+    const cfg = getConfig()
+    if (!cfg.url) {
+      setStatus('请填写 API URL')
+      setStatusType('error')
+      return
+    }
+
+    const testMessage = messages.find((m) => m.content.trim()) || { role: 'user', content: 'Hello' }
+    setStatus(`批量测试中... (0/${modelList.length})`)
+    setStatusType('loading')
+    setLoading(true)
+    setMetaInfo('')
+
+    const results: Array<{ model: string; status: string; time: number; error?: string }> = []
+    let completed = 0
+
+    for (const model of modelList) {
+      const startTime = Date.now()
+      try {
+        const baseUrl = cfg.url.replace(/\/+$/, '')
+        const url = `${baseUrl}/chat/completions`
+        const body = {
+          model: model.id,
+          messages: [testMessage],
+          max_tokens: 10,
+          stream: false,
+        }
+
+        const result = await proxyRequest(url, 'POST', cfg.headers, body)
+        const elapsed = Date.now() - startTime
+
+        if (result.status >= 200 && result.status < 300) {
+          results.push({ model: model.id, status: '✅', time: elapsed })
+        } else {
+          results.push({
+            model: model.id,
+            status: '❌',
+            time: elapsed,
+            error: result.data?.error?.message || '请求失败',
+          })
+        }
+      } catch (e: unknown) {
+        const elapsed = Date.now() - startTime
+        const message = e instanceof Error ? e.message : '未知错误'
+        results.push({ model: model.id, status: '❌', time: elapsed, error: message })
+      }
+
+      completed++
+      setStatus(`批量测试中... (${completed}/${modelList.length})`)
+    }
+
+    // 格式化结果
+    const resultHtml = results
+      .map(
+        (r) =>
+          `<span class="${r.status === '✅' ? 'success' : 'error'}">${r.status}</span> ${r.model} <span class="number">${r.time}ms</span>${r.error ? ` <span class="error">${r.error}</span>` : ''}`,
+      )
+      .join('\n')
+
+    setResult(resultHtml)
+    const successCount = results.filter((r) => r.status === '✅').length
+    setStatus(`批量测试完成: ${successCount}/${results.length} 成功`)
+    setStatusType(successCount === results.length ? 'success' : 'error')
+    setLoading(false)
+  }, [getConfig, modelList, messages, showResult])
+
   return (
     <div class="container">
       <h1>
@@ -590,6 +664,9 @@ export default function App() {
           <div style="display:flex;gap:8px;margin-top:4px">
             <button type="button" class="btn btn-primary" onClick={sendTest}>
               🚀 发送请求
+            </button>
+            <button type="button" class="btn btn-success" onClick={batchTest}>
+              📊 批量测试
             </button>
             <button type="button" class="btn btn-outline" onClick={clearResult}>
               清除
