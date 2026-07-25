@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# ============================================
+#  LLM API Tester — 一键启动脚本 (iTerm2)
+#  双击 .app 即可启动，在 iTerm2 中运行
+#  按回车键停止服务
+# ============================================
+
+# 获取真正的脚本所在目录（.app 内的 MacOS/ 目录，需要回溯到项目根目录）
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+cd "$DIR"
+
+PORT=3001
+
+# 用 iTerm2 打开新窗口运行服务
+osascript <<EOF
+tell application "iTerm2"
+    activate
+    
+    -- 获取当前窗口或创建新窗口
+    set hasWindow to false
+    try
+        set win to front window
+        set hasWindow to true
+    end try
+    
+    if hasWindow then
+        tell current window
+            create tab with default profile
+            tell current session
+                write text "cd '$DIR' && clear && echo '' && echo '╔════════════════════════════════════════╗' && echo '║        LLM API Tester                 ║' && echo '║      一键启动 v1.0                     ║' && echo '╚════════════════════════════════════════╝' && echo '' && echo '🚀 正在启动服务...' && echo ''"
+                write text "node server.js $PORT"
+            end tell
+        end tell
+    else
+        tell (create window with default profile)
+            tell current session
+                write text "cd '$DIR' && clear && echo '' && echo '╔════════════════════════════════════════╗' && echo '║        LLM API Tester                 ║' && echo '║      一键启动 v1.0                     ║' && echo '╚════════════════════════════════════════╝' && echo '' && echo '🚀 正在启动服务...' && echo ''"
+                write text "node server.js $PORT"
+            end tell
+        end tell
+    end if
+end tell
+
+-- 等待服务启动
+delay 2
+
+-- 用系统默认浏览器打开（你的是 Chrome）
+delay 1
+do shell script "open http://localhost:$PORT"
+EOF
+
+echo ""
+echo "✅ 服务已启动！"
+echo "📍 http://localhost:$PORT"
+echo ""
+echo "🛑 要停止服务，请在 iTerm2 中按 Ctrl+C"
+echo "   或直接关闭 iTerm2 标签页"
