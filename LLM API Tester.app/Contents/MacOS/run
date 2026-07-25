@@ -29,14 +29,14 @@ tell application "iTerm2"
             create tab with default profile
             tell current session
                 write text "cd '$DIR' && clear && echo '' && echo '╔════════════════════════════════════════╗' && echo '║        LLM API Tester                 ║' && echo '║      一键启动 v2.0 (HonoX)             ║' && echo '╚════════════════════════════════════════╝' && echo '' && echo '🚀 正在启动服务...' && echo ''"
-                write text "npm run dev"
+                write text "pnpm dev"
             end tell
         end tell
     else
         tell (create window with default profile)
             tell current session
                 write text "cd '$DIR' && clear && echo '' && echo '╔════════════════════════════════════════╗' && echo '║        LLM API Tester                 ║' && echo '║      一键启动 v2.0 (HonoX)             ║' && echo '╚════════════════════════════════════════╝' && echo '' && echo '🚀 正在启动服务...' && echo ''"
-                write text "npm run dev"
+                write text "pnpm dev"
             end tell
         end tell
     end if
