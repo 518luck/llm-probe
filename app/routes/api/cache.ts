@@ -7,7 +7,7 @@ const app = new Hono()
 const CACHE_FILE = join(process.cwd(), 'app/data/api-cache.json')
 
 interface CacheData {
-  urls: Record<string, string>
+  urls: string[]
   models: Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
   lastUrl: string
 }
@@ -21,7 +21,7 @@ function readCache(): CacheData {
   } catch {
     // ignore
   }
-  return { urls: {}, models: {}, lastUrl: '' }
+  return { urls: [], models: {}, lastUrl: '' }
 }
 
 function writeCache(data: CacheData) {
@@ -43,12 +43,17 @@ app.post('/', async (c) => {
   const body = await c.req.json()
   const cache = readCache()
 
-  if (body.url && body.key !== undefined) {
-    cache.urls[body.url] = body.key
+  // 保存 URL（不存 Key）
+  if (body.url) {
+    if (!cache.urls.includes(body.url)) {
+      cache.urls.push(body.url)
+    }
   }
+  // 保存模型列表
   if (body.url && body.models !== undefined) {
     cache.models[body.url] = body.models
   }
+  // 保存最后使用的 URL
   if (body.lastUrl) {
     cache.lastUrl = body.lastUrl
   }

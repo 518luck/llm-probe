@@ -12,7 +12,7 @@ interface Message {
 }
 
 interface CacheData {
-  urls: Record<string, string>
+  urls: string[]
   models: Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
   lastUrl: string
 }
@@ -23,14 +23,13 @@ async function loadCacheFromServer(): Promise<CacheData> {
     const resp = await fetch('/api/cache')
     return await resp.json()
   } catch {
-    return { urls: {}, models: {}, lastUrl: '' }
+    return { urls: [], models: {}, lastUrl: '' }
   }
 }
 
 // 保存缓存到服务端
 async function saveCacheToServer(data: {
   url?: string
-  key?: string
   models?: Array<{ id: string; supported_endpoint_types?: string[] }>
   lastUrl?: string
 }) {
@@ -48,7 +47,7 @@ async function saveCacheToServer(data: {
 export default function App() {
   const [apiUrl, setApiUrl] = useState('https://agentrouter.org/v1')
   const [apiKey, setApiKey] = useState('')
-  const [cachedUrls, setCachedUrls] = useState<Record<string, string>>({})
+  const [cachedUrls, setCachedUrls] = useState<string[]>([])
   const [cachedModels, setCachedModels] = useState<
     Record<string, Array<{ id: string; supported_endpoint_types?: string[] }>>
   >({})
@@ -75,7 +74,6 @@ export default function App() {
       setCachedModels(cache.models)
       if (cache.lastUrl) {
         setApiUrl(cache.lastUrl)
-        setApiKey(cache.urls[cache.lastUrl] || '')
         // 加载该 URL 的缓存模型列表
         if (cache.models[cache.lastUrl]) {
           setModelList(cache.models[cache.lastUrl])
@@ -87,10 +85,10 @@ export default function App() {
   // 处理 API URL 变更
   const handleApiUrlChange = useCallback((newUrl: string) => {
     setApiUrl(newUrl)
-    saveCacheToServer({ lastUrl: newUrl })
-    // 切换 URL 时，从服务端获取该 URL 对应的 API Key 和模型列表
+    setApiKey('') // 切换 URL 时清空 Key
+    saveCacheToServer({ lastUrl: newUrl, url: newUrl })
+    // 切换 URL 时，加载该 URL 的模型列表
     loadCacheFromServer().then((cache) => {
-      setApiKey(cache.urls[newUrl] || '')
       setCachedModels(cache.models)
       if (cache.models[newUrl]) {
         setModelList(cache.models[newUrl])
@@ -100,14 +98,10 @@ export default function App() {
     })
   }, [])
 
-  // 处理 API Key 变更
+  // 处理 API Key 变更（不缓存）
   const handleApiKeyChange = useCallback(
     (newKey: string) => {
       setApiKey(newKey)
-      // 保存当前 URL 对应的 API Key 到服务端
-      saveCacheToServer({ url: apiUrl, key: newKey })
-      // 更新本地缓存列表
-      setCachedUrls((prev) => ({ ...prev, [apiUrl]: newKey }))
     },
     [apiUrl],
   )
@@ -389,13 +383,13 @@ export default function App() {
               style="flex:1"
               onInput={(e) => handleApiUrlChange((e.target as HTMLInputElement).value)}
             />
-            {Object.keys(cachedUrls).length > 0 && (
+            {cachedUrls.length > 0 && (
               <select
                 value={apiUrl}
                 onChange={(e) => handleApiUrlChange((e.target as HTMLSelectElement).value)}
                 style="width:200px"
               >
-                {Object.keys(cachedUrls).map((url) => (
+                {cachedUrls.map((url) => (
                   <option key={url} value={url}>
                     {url}
                   </option>
@@ -718,11 +712,11 @@ export default function App() {
 
         {/* Tab: 站点管理 */}
         <div class={`tab-content ${activeTab === 'sites' ? 'active' : ''}`}>
-          {Object.keys(cachedUrls).length === 0 ? (
+          {cachedUrls.length === 0 ? (
             <div style="color:#565f89;font-size:13px">暂无保存的站点</div>
           ) : (
             <div style="display:flex;flex-direction:column;gap:12px">
-              {Object.entries(cachedUrls).map(([url, key]) => (
+              {cachedUrls.map((url) => (
                 <div
                   key={url}
                   style="background:#1f2335;border:1px solid #414868;border-radius:8px;padding:12px"
@@ -737,9 +731,6 @@ export default function App() {
                     >
                       切换
                     </button>
-                  </div>
-                  <div style="font-size:12px;color:#565f89;margin-bottom:8px">
-                    Key: {key.slice(0, 15)}...
                   </div>
                   <div>
                     <div style="font-size:12px;color:#565f89;margin-bottom:4px">

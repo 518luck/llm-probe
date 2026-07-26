@@ -1,36 +1,14 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15
-    container_name: litellm-db
-    environment:
-      - POSTGRES_USER=litellm
-      - POSTGRES_PASSWORD=litellm
-      - POSTGRES_DB=litellm
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U litellm"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: litellm
+  llm-probe:
+    build: .
+    container_name: llm-probe
     ports:
-      - "4000:4000"
+      - "3002:3001"
     volumes:
-      - ./litellm_config.yaml:/app/config.yaml
-    environment:
-      - LITELLM_MASTER_KEY=sk-master-change-me
-      - DATABASE_URL=postgresql://litellm:litellm@db:5432/litellm
-    command: --config /app/config.yaml
-    depends_on:
-      db:
-        condition: service_healthy
+      - probe_data:/app/app/data
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  probe_data:
