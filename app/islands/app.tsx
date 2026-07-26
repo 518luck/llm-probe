@@ -59,6 +59,7 @@ export default function App() {
   const [stream, setStream] = useState(false)
   const [maxTokens, setMaxTokens] = useState(100)
   const [result, setResult] = useState('等待发送请求...')
+  const [rawResult, setRawResult] = useState('') // 保存原始 JSON 用于复制
   const [status, setStatus] = useState('')
   const [statusType, setStatusType] = useState('')
   const [loading, setLoading] = useState(false)
@@ -138,8 +139,10 @@ export default function App() {
   const showResult = useCallback((data: unknown) => {
     if (typeof data === 'string') {
       setResult(data)
+      setRawResult(data)
     } else {
       setResult(syntaxHighlight(data))
+      setRawResult(JSON.stringify(data, null, 2))
     }
   }, [])
 
@@ -274,10 +277,24 @@ export default function App() {
 
   const clearResult = useCallback(() => {
     setResult('等待发送请求...')
+    setRawResult('')
     setStatus('就绪')
     setStatusType('')
     setMetaInfo('')
   }, [])
+
+  // 复制结果到剪贴板
+  const copyResult = useCallback(() => {
+    if (rawResult) {
+      navigator.clipboard.writeText(rawResult)
+      setStatus('已复制到剪贴板')
+      setStatusType('success')
+      setTimeout(() => {
+        setStatus('')
+        setStatusType('')
+      }, 2000)
+    }
+  }, [rawResult])
 
   // 批量测试所有模型
   const batchTest = useCallback(async () => {
@@ -752,7 +769,21 @@ export default function App() {
 
       {/* 结果区 */}
       <div class="card">
-        <div class="card-title">📦 响应</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">
+            📦 响应
+          </div>
+          {rawResult && (
+            <button
+              type="button"
+              class="btn btn-outline"
+              style="font-size:11px;padding:4px 8px"
+              onClick={copyResult}
+            >
+              📋 复制
+            </button>
+          )}
+        </div>
         <div class={`status-bar ${loading ? 'loading' : ''}`}>
           <span class="spinner"></span>
           <span class={`status-text ${statusType}`}>{status || '就绪'}</span>
